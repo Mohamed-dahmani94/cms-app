@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
@@ -37,6 +38,7 @@
     "react-day-picker": "^9.12.0",
     "react-dom": "19.2.0",
     "recharts": "^3.5.1",
+    "@prisma/client": "^5.10.2",
     "tailwind-merge": "^3.4.0",
     "xlsx": "^0.18.5"
   },
@@ -44,7 +46,6 @@
     "seed": "node prisma/seed.js"
   },
   "devDependencies": {
-    "@prisma/client": "^5.10.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
