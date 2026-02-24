@@ -1,0 +1,171 @@
+
+// ============================================
+// MARKET-BASED CONSTRUCTION MANAGEMENT MODELS
+// ============================================
+
+model BuildingTemplate {
+  id              String   @id @default(uuid())
+  name            String   // "R+9", "R+5", etc.
+  numberOfFloors  Int      // 10, 6, etc.
+  
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  blocks          ProjectBlock[]
+  apartmentTypes  ApartmentType[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ApartmentType {
+  id                String   @id @default(uuid())
+  type              String   // "F2", "F3", "F4", "Commerce"
+  countPerFloor     Int      // Nombre par étage
+  totalCount        Int      // Total calculé
+  
+  templateId        String
+  template          BuildingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ProjectBlock {
+  id        String   @id @default(uuid())
+  name      String   // "Bloc A", "Bloc B", etc.
+  code      String   // "A", "B", etc.
+  order     Int      @default(0)
+  
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  templateId String?
+  template   BuildingTemplate? @relation(fields: [templateId], references: [id])
+  
+  articleProgress BlockArticleProgress[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Market {
+  id              String   @id @default(uuid())
+  marketNumber    String   // "2025/OPGI/TZ/001"
+  marketDate      DateTime
+  odsNumber       String?  // "ODS/2025/001"
+  odsDate         DateTime?
+  estimatedCost   Float    // Coût estimé marché
+  
+  projectId       String   @unique
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  lots            MarketLot[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model MarketLot {
+  id          String   @id @default(uuid())
+  code        String   // "LOT 01"
+  name        String   // "Terrassement"
+  order       Int      @default(0)
+  
+  marketId    String
+  market      Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  
+  articles    MarketArticle[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model MarketArticle {
+  id              String   @id @default(uuid())
+  code            String   // "ART 01.01"
+  designation     String
+  unit            String   // "m³", "m²", "ml", "U"
+  unitPrice       Float    // Prix unitaire DA
+  quantity        Float    // Quantité totale
+  totalAmount     Float    // Montant total = quantity × unitPrice
+  
+  // PV requirement
+  pvRequired      Boolean  @default(false) // PV obligatoire ou non
+  
+  lotId           String
+  lot             MarketLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  
+  // Link to ProjectPhase (one article = one phase)
+  phaseId         String?  @unique
+  phase           ProjectPhase? @relation(fields: [phaseId], references: [id])
+  
+  tasks           ArticleTask[]
+  blockProgress   BlockArticleProgress[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ArticleTask {
+  id              String   @id @default(uuid())
+  code            String   // "T01"
+  designation     String
+  duration        Int      // days
+  priority        String   @default("MEDIUM")
+  
+  articleId       String
+  article         MarketArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  
+  subTasks        ArticleSubTask[]
+  
+  // Link to actual Task
+  taskId          String?  @unique
+  task            Task?    @relation(fields: [taskId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ArticleSubTask {
+  id              String   @id @default(uuid())
+  code            String   // "ST01"
+  designation     String
+  duration        Int      // days
+  engineerEmail   String?
+  
+  // Progress tracking
+  completionPercentage Float @default(0) // 0-100%
+  
+  taskId          String
+  task            ArticleTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model BlockArticleProgress {
+  id                  String   @id @default(uuid())
+  
+  blockId             String
+  block               ProjectBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  
+  articleId           String
+  article             MarketArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  
+  floorNumber         Int?     // Numéro d'étage (null = pas d'étage)
+  
+  // Task-based progress (calculated from tasks/subtasks)
+  completionPercentage Float   @default(0) // % moyen des tâches
+  completedAmount     Float    @default(0) // Montant = % × Prix Total
+  
+  // PV tracking
+  pvRequired          Boolean  @default(false)
+  pvUploaded          Boolean  @default(false)
+  pvDocumentUrl       String?  // URL du PV uploadé
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@unique([blockId, articleId, floorNumber])
+}

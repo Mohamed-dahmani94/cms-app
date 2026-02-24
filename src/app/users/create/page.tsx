@@ -1,0 +1,94 @@
+"use client";
+
+import { useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft } from "lucide-react";
+
+export default function CreateUserPage() {
+    const { data: session, status } = useSession();
+    const router = useRouter();
+
+    const [name, setName] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [role, setRole] = useState("ENGINEER");
+    const [specialty, setSpecialty] = useState("");
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!session) return;
+
+        const res = await fetch("/api/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                name,
+                email,
+                password,
+                role,
+                specialty
+            }),
+        });
+
+        if (res.ok) {
+            router.push("/users");
+        } else {
+            console.error("Failed to create user", await res.text());
+        }
+    };
+
+    if (status === "loading") return <p>Loading...</p>;
+    if (!session || session.user.role !== "ADMIN") return <p>Accès refusé.</p>;
+
+    return (
+        <div className="max-w-2xl mx-auto p-6">
+            <div className="mb-4">
+                <Button variant="ghost" onClick={() => router.back()}>
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Retour
+                </Button>
+            </div>
+            <h1 className="text-2xl font-bold mb-4">Créer un nouvel utilisateur</h1>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <Label htmlFor="name">Nom complet</Label>
+                    <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+                </div>
+                <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                </div>
+                <div>
+                    <Label htmlFor="password">Mot de passe</Label>
+                    <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                </div>
+                <div>
+                    <Label htmlFor="role">Rôle</Label>
+                    <Select onValueChange={setRole} value={role}>
+                        <SelectTrigger id="role">
+                            <SelectValue placeholder="Sélectionner un rôle" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ADMIN">Admin</SelectItem>
+                            <SelectItem value="PROJECT_MANAGER">Chef de projet</SelectItem>
+                            <SelectItem value="ENGINEER">Ingénieur</SelectItem>
+                            <SelectItem value="DAILY_WORKER">Ouvrier journalier</SelectItem>
+                            <SelectItem value="PIECEWORKER">Tâcheron</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div>
+                    <Label htmlFor="specialty">Spécialité (Optionnel)</Label>
+                    <Input id="specialty" value={specialty} onChange={(e) => setSpecialty(e.target.value)} />
+                </div>
+                <Button type="submit" className="w-full">
+                    Créer l'utilisateur
+                </Button>
+            </form>
+        </div>
+    );
+}

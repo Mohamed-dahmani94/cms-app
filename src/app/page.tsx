@@ -1,65 +1,149 @@
-import Image from "next/image";
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { redirect } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
+import {
+  LayoutDashboard,
+  CheckSquare,
+  Briefcase,
+  Users,
+  Plus,
+  LogOut,
+  FileText,
+  Settings
+} from "lucide-react"
 
-export default function Home() {
+export default async function HomePage() {
+  const session = await getServerSession(authOptions)
+
+  if (!session) {
+    redirect("/login")
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Construction Management System
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600 dark:text-gray-300">
+              {session.user.name} ({session.user.role})
+            </span>
+            <form action="/api/auth/signout" method="POST">
+              <Button type="submit" variant="outline" size="sm">
+                Déconnexion
+              </Button>
+            </form>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Projets</CardTitle>
+              <CardDescription>Gérer les projets de construction</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href="/projects">Voir les projets</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Tâches</CardTitle>
+              <CardDescription>Suivi quotidien des tâches</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button asChild className="w-full">
+                <Link href="/tasks">Mes tâches</Link>
+              </Button>
+              {session.user.role === "ADMIN" && (
+                <>
+                  <Button asChild variant="secondary" className="w-full">
+                    <Link href="/tasks/dashboard">Tableau de bord</Link>
+                  </Button>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/tasks/create">Créer une tâche</Link>
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Finance</CardTitle>
+              <CardDescription>Tableau de bord financier</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href="/finance">Voir finances</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Inventaire</CardTitle>
+              <CardDescription>Gestion des matériaux et équipements</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href="/inventory">Voir inventaire</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Rapports</CardTitle>
+              <CardDescription>Rapports quotidiens et analyses</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href="/reports">Voir rapports</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Utilisateurs</CardTitle>
+              <CardDescription>Gestion des utilisateurs</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full" disabled={session.user.role !== "ADMIN"}>
+                <Link href="/users">Gérer utilisateurs</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {session.user.role === "ADMIN" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Paramètres</CardTitle>
+                <CardDescription>Configuration de l'entreprise</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild className="w-full">
+                  <Link href="/settings/company">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Paramètres entreprise
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>
-  );
+  )
 }

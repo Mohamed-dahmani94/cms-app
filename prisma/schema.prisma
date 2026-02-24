@@ -1,0 +1,755 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("ENGINEER") // ADMIN, PROJECT_MANAGER, ENGINEER, DAILY_WORKER, PIECEWORKER, SUBCONTRACTOR
+  specialty String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasksAssigned Task[]        @relation("AssignedTasks")
+  reports       DailyReport[]
+  subcontracts  Subcontract[]
+}
+
+model Project {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  location    String?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String    @default("ACTIVE")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  client        String?
+  estimatedCost Float?  @default(0.0)
+
+  // Billing Settings
+  billingMode      String @default("HT") // "HT" or "TTC"
+  taxRate          Float  @default(19.0)
+  currencyUnit     String @default("DZD")
+  currencyDecimals Int    @default(2)
+  quantityDecimals Int    @default(3)
+
+  phases    ProjectPhase[]
+  documents Document[]
+
+  costCenter CostCenter?
+  tasks      Task[]
+  inventory  InventoryItem[]
+
+  // Market-based structure
+  market    Market?
+  templates BuildingTemplate[]
+  blocks    ProjectBlock[]
+  invoices  Invoice[]
+  subcontracts Subcontract[]
+}
+
+model ProjectPhase {
+  id                   String    @id @default(uuid())
+  name                 String
+  startDate            DateTime?
+  endDate              DateTime?
+  status               String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  completionPercentage Int       @default(0) // manual % of phase completion (0-100)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+
+  // Link to market article
+  marketArticle MarketArticle?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Document {
+  id   String @id @default(uuid())
+  name String
+  type String // CONTRACT, PLAN, PERMIT, OTHER
+  url  String
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  articleId   String?
+  article     MarketArticle? @relation(fields: [articleId], references: [id])
+  
+  subTaskId   String?
+  subTask     ArticleSubTask? @relation(fields: [subTaskId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  status      String    @default("PENDING") // PENDING, IN_PROGRESS, PRELIMINARY_DONE, FINAL_DONE, LOCKED
+  priority    String    @default("MEDIUM")
+  startDate   DateTime?
+  dueDate     DateTime?
+
+  // Fuzzy/Locked Logic
+  isFuzzy  Boolean @default(false)
+  isLocked Boolean @default(false)
+
+  // Completion Data
+  preliminaryDoneAt DateTime?
+  finalDoneAt       DateTime?
+  pvFileUrl         String?
+
+  // Location & Evidence
+  gpsLatitude  Float?
+  gpsLongitude Float?
+  siteImageUrl String?
+
+  // Relations
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  phaseId String?
+  phase   ProjectPhase? @relation(fields: [phaseId], references: [id])
+
+  parentTaskId String? // optional parent task for subtasks
+  parentTask   Task?   @relation("Subtasks", fields: [parentTaskId], references: [id])
+  subtasks     Task[]  @relation("Subtasks")
+
+  // Dependencies (Predecessor)
+  predecessorId String?
+  predecessor   Task?   @relation("TaskDependencies", fields: [predecessorId], references: [id])
+  successors    Task[]  @relation("TaskDependencies")
+
+  // Assignment fields
+  assignedToId String?
+  assignedTo   User?        @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  
+  // Subcontracting
+  subcontractId String?
+  subcontract   Subcontract? @relation(fields: [subcontractId], references: [id])
+  subcontractorPrice Float? @default(0) // DEPRECATED: Use SubcontractItem.unitPrice
+  
+  // Link back to SubcontractItem
+  subcontractItem SubcontractItem?
+  
+  progress Int @default(0) // Avancement réel 0-100%
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  ArticleTask  ArticleTask?
+}
+
+model Subcontract {
+  id        String   @id @default(uuid())
+  name      String   // "Lot Electricité Bloc A"
+  status    String   @default("DRAFT") // DRAFT, ACTIVE, COMPLETED, ARCHIVED
+
+  // Financials
+  totalAmount Float @default(0)
+  retentionGuarantee Float @default(10.0) // 10% retenue de garantie
+
+  // Dates
+  startDate DateTime?
+  endDate   DateTime?
+
+  subcontractorId String
+  subcontractor   User @relation(fields: [subcontractorId], references: [id]) // User with role=SUBCONTRACTOR
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tasks     Task[]
+  items     SubcontractItem[]
+  bills     SubcontractorBill[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SubcontractItem {
+  id          String @id @default(uuid())
+  description String // Designation
+  unit        String // U, m2, m3
+  unitPrice   Float  @default(0) // Prix Unitaire Sous-traitant
+  quantity    Float  @default(0) // Quantité Sous-traitée
+  totalAmount Float  @default(0) // Montant Total (calc)
+
+  // Link to Market (Optional - if "Custom", this is null)
+  marketArticleId String?
+  marketArticle   MarketArticle? @relation(fields: [marketArticleId], references: [id])
+
+  // Link to Task (Operational)
+  taskId String? @unique
+  task   Task?   @relation(fields: [taskId], references: [id])
+
+  subcontractId String
+  subcontract   Subcontract @relation(fields: [subcontractId], references: [id], onDelete: Cascade)
+
+  billItems SubcontractorBillItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SubcontractorBill {
+  id     String   @id @default(uuid())
+  number String   // "SIT-001"
+  date   DateTime @default(now())
+  status String   @default("DRAFT") // DRAFT, SUBMITTED, VALIDATED, PAID
+
+  // Period
+  periodStart DateTime?
+  periodEnd   DateTime?
+
+  // Financials
+  progressAmount Float @default(0) // Montant des travaux réalisés (HT)
+  retentionAmount Float @default(0) // Montant retenu (Garantie)
+  taxAmount      Float @default(0) // TVA
+  totalAmount    Float @default(0) // Net à payer (HT - Retenue + TVA)
+
+  subcontractId String
+  subcontract   Subcontract @relation(fields: [subcontractId], references: [id], onDelete: Cascade)
+
+  items SubcontractorBillItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SubcontractorBillItem {
+  id String @id @default(uuid())
+
+  billId String
+  bill   SubcontractorBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  subcontractItemId String
+  subcontractItem   SubcontractItem @relation(fields: [subcontractItemId], references: [id])
+
+  // Snapshot values at time of billing
+  previousPercentage Float @default(0)
+  currentPercentage  Float @default(0)
+  totalPercentage    Float @default(0)
+
+  previousAmount Float @default(0)
+  currentAmount  Float @default(0)
+  totalAmount    Float @default(0) // Cumulative amount
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CostCenter {
+  id            String @id @default(uuid())
+  name          String
+  budget        Float  @default(0.0)
+  totalExpenses Float  @default(0.0)
+  totalIncome   Float  @default(0.0)
+
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  amount      Float
+  type        String // EXPENSE, INCOME
+  description String
+  category    String? // e.g., "Materials", "Labor", "RH"
+  date        DateTime @default(now())
+
+  costCenterId String
+  costCenter   CostCenter @relation(fields: [costCenterId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InventoryItem {
+  id          String  @id @default(uuid())
+  name        String
+  sku         String?
+  quantity    Int     @default(0)
+  minQuantity Int     @default(10)
+  unitPrice   Float   @default(0.0)
+  location    String?
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DailyReport {
+  id      String   @id @default(uuid())
+  content String
+  summary String? // AI Generated Summary
+  date    DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// MARKET-BASED CONSTRUCTION MANAGEMENT MODELS
+// ============================================
+
+model BuildingTemplate {
+  id             String @id @default(uuid())
+  name           String // "R+9", "R+5", etc.
+  numberOfFloors Int // 10, 6, etc.
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  blocks         ProjectBlock[]
+  apartmentTypes ApartmentType[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ApartmentType {
+  id            String @id @default(uuid())
+  type          String // "F2", "F3", "F4", "Commerce"
+  countPerFloor Int // Nombre par étage
+  totalCount    Int // Total calculé
+
+  templateId String
+  template   BuildingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProjectBlock {
+  id    String @id @default(uuid())
+  name  String // "Bloc A", "Bloc B", etc.
+  code  String // "A", "B", etc.
+  order Int    @default(0)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  templateId String?
+  template   BuildingTemplate? @relation(fields: [templateId], references: [id])
+
+  articleProgress BlockArticleProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Market {
+  id            String    @id @default(uuid())
+  marketNumber  String // "2025/OPGI/TZ/001"
+  marketDate    DateTime
+  odsNumber     String? // "ODS/2025/001"
+  odsDate       DateTime?
+  estimatedCost Float // Coût estimé marché
+
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  lots MarketLot[]
+  amendments Amendment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MarketLot {
+  id    String @id @default(uuid())
+  code  String // "LOT 01"
+  name  String // "Terrassement"
+  order Int    @default(0)
+
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  articles MarketArticle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MarketArticle {
+  id          String @id @default(uuid())
+  code        String // "ART 01.01"
+  designation String
+  unit        String // "m³", "m²", "ml", "U"
+  unitPrice   Float // Prix unitaire DA
+  quantity    Float // Quantité totale
+  totalAmount Float // Montant total = quantity × unitPrice
+
+  // Planning dates - Theoretical (planned)
+  startDate DateTime? // Date de début prévue
+  endDate   DateTime? // Date de fin prévue
+
+  // Real dates - Actual (when work started/finished)
+  realStartDate DateTime? // Date de lancement réelle
+  realEndDate   DateTime? // Date de finalisation réelle
+
+  // PV requirement and status
+  pvRequired Boolean @default(false) // PV obligatoire ou non
+  pvStatus   String? // "SANS_RESERVE" | "AVEC_RESERVE" | null
+  pvDate     DateTime? // Date du PV
+  pvFileUrl  String? // URL du fichier PV
+  
+  // Closure status
+  isClosed   Boolean @default(false) // Clôturé définitivement
+  closedAt   DateTime? // Date de clôture
+  closedBy   String? // Email de l'admin qui a clôturé
+
+  lotId String
+  lot   MarketLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  // Optional Link to Amendment (if null, belongs to Base Market)
+  amendmentId String?
+  amendment   Amendment? @relation(fields: [amendmentId], references: [id])
+
+  // Link to ProjectPhase (one article = one phase)
+  phaseId String?       @unique
+  phase   ProjectPhase? @relation(fields: [phaseId], references: [id])
+
+  tasks         ArticleTask[]
+  blockProgress BlockArticleProgress[]
+  documents     Document[]
+  invoiceItems  InvoiceItem[]
+  subcontractItems SubcontractItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Amendment {
+  id     String   @id @default(uuid())
+  number String   // "Avenant N°1"
+  date   DateTime @default(now())
+  status String   @default("DRAFT") // DRAFT, VALIDATED
+
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  articles MarketArticle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ArticleTask {
+  id          String @id @default(uuid())
+  code        String // "T01"
+  designation String
+  duration    Int // days
+  priority    String @default("MEDIUM")
+
+  articleId String
+  article   MarketArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  subTasks ArticleSubTask[]
+
+  // Link to actual Task
+  taskId String? @unique
+  task   Task?   @relation(fields: [taskId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ArticleSubTask {
+  id            String  @id @default(uuid())
+  code          String // "ST01"
+  designation   String
+  duration      Int // days
+  weight        Float   @default(100) // Poids % dans la tâche (0-100)
+  engineerEmail String?
+
+  // Progress tracking
+  completionPercentage Float @default(0) // 0-100%
+  
+  // Reserve tracking
+  isReserve     Boolean @default(false) // Est-ce une réserve issue d'un PV ?
+
+  taskId String
+  task   ArticleTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  documents     Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BlockArticleProgress {
+  id String @id @default(uuid())
+
+  blockId String
+  block   ProjectBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  articleId String
+  article   MarketArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  floorNumber Int? // Numéro d'étage (null = pas d'étage)
+
+  // Task-based progress (calculated from tasks/subtasks)
+  completionPercentage Float @default(0) // % moyen des tâches
+  completedAmount      Float @default(0) // Montant = % × Prix Total
+
+  // PV tracking
+  pvRequired    Boolean @default(false)
+  pvUploaded    Boolean @default(false)
+  pvDocumentUrl String? // URL du PV uploadé
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([blockId, articleId, floorNumber])
+}
+
+model Invoice {
+  id        String   @id @default(uuid())
+  number    String   // Facture/Situation No
+  date      DateTime @default(now())
+  status    String   @default("DRAFT") // DRAFT, VALIDATED
+  
+  // Period (Start/End dates of the billing period)
+  periodStart DateTime?
+  periodEnd   DateTime?
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  items InvoiceItem[]
+
+  totalAmount Float @default(0) // Autosum of items
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InvoiceItem {
+  id        String @id @default(uuid())
+  
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  articleId String
+  article   MarketArticle @relation(fields: [articleId], references: [id])
+
+  // Snapshot of values at invoicing time
+  designation       String 
+  unit              String
+  unitPrice         Float
+  marketQuantity    Float 
+  
+  // Invoiced Quantities
+  previousQuantity  Float @default(0) // Cumul précédent
+  currentQuantity   Float @default(0) // Quantité du moist/période (calculated)
+  totalQuantity     Float @default(0) // Cumul à ce jour (user input or calculated from %)
+
+  // Invoiced Percentages
+  previousPercentage Float @default(0)
+  currentPercentage  Float @default(0) // % du mois (calculated)
+  totalPercentage    Float @default(0) // % cumulé à ce jour (user input)
+
+  // Invoiced Amounts
+  previousAmount    Float @default(0)
+  currentAmount     Float @default(0) 
+  totalAmount       Float @default(0) // Montant à ce jour
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CompanySettings {
+  id String @id @default(uuid())
+  
+  // Basic Info
+  companyName String
+  slogan      String?
+  
+  // Tax Info
+  nif   String? // Numéro d'Identification Fiscale
+  rc    String? // Registre de Commerce
+  nis   String? // Numéro d'Identification Statistique
+  stats String? // Numéro Statistique
+  
+  // Contact
+  address    String?
+  city       String?
+  postalCode String?
+  phone      String?
+  email      String?
+  website    String?
+  
+  // Logo
+  logoUrl String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// INVENTORY & STOCK MANAGEMENT MODELS
+// ============================================
+
+model Product {
+  id          String  @id @default(uuid())
+  name        String
+  code        String  @unique
+  description String?
+  unit        String  // "Kg", "m³", "U", "L", "Sac", "Tonne"
+  category    String? // "Ciment", "Acier", "Bois", "Plomberie"
+  minStock    Float   @default(0)
+  currentStock Float  @default(0)
+  unitPrice   Float   @default(0) // Dernier prix d'achat
+
+  supplierId  String?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id])
+
+  movements     StockMovement[]
+  purchaseItems PurchaseOrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Supplier {
+  id      String  @id @default(uuid())
+  name    String
+  phone   String?
+  address String?
+  email   String?
+  nif     String? // Numéro d'Identification Fiscale
+  rc      String? // Registre de Commerce
+
+  products   Product[]
+  purchases  PurchaseOrder[]
+  movements  StockMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PurchaseOrder {
+  id         String   @id @default(uuid())
+  number     String   // "BC-2026-001"
+  date       DateTime @default(now())
+  status     String   @default("DRAFT") // DRAFT, ORDERED, RECEIVED, PARTIALLY_RECEIVED, CANCELLED
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  projectId  String? // Lié à un projet (optionnel)
+
+  totalAmount Float @default(0)
+  notes       String?
+
+  items PurchaseOrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PurchaseOrderItem {
+  id        String @id @default(uuid())
+  quantity  Float
+  unitPrice Float
+  total     Float
+  received  Float  @default(0) // Quantité reçue
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StockMovement {
+  id        String   @id @default(uuid())
+  type      String   // "ENTRY", "EXIT", "CONSUMPTION", "SALE", "RETURN", "ADJUSTMENT"
+  quantity  Float
+  unitPrice Float    @default(0)
+  total     Float    @default(0)
+  reason    String?
+  date      DateTime @default(now())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  supplierId String?  // Fournisseur lié au mouvement
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
+
+  projectId String? // Consommation liée à un projet
+  userId    String? // Qui a fait le mouvement
+  reference String? // Référence BC/Facture
+  batchRef  String? // Référence du lot (pour regrouper les mouvements multi-produits)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// CASH REGISTER & FINANCIAL MANAGEMENT MODELS
+// ============================================
+
+model CashRegister {
+  id      String @id @default(uuid())
+  name    String // "Caisse Projet AADL", "Caisse Ahmed"
+  type    String // "PROJECT", "USER"
+  balance Float  @default(0)
+
+  projectId String? // Si caisse projet
+  userId    String? // Si caisse utilisateur
+
+  transactions CashTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CashTransaction {
+  id          String   @id @default(uuid())
+  type        String   // "IN", "OUT"
+  amount      Float
+  description String
+  category    String?  // "Achat matériaux", "Salaire", "Vente", etc.
+  date        DateTime @default(now())
+  reference   String?  // Ref BC ou facture
+
+  registerId String
+  register   CashRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
