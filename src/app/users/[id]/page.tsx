@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 
-export default function EditUserPage({ params }: { params: { id: string } }) {
+export default function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params);
     const { data: session, status } = useSession();
     const router = useRouter();
     const [loading, setLoading] = useState(true);
@@ -21,7 +22,7 @@ export default function EditUserPage({ params }: { params: { id: string } }) {
 
     useEffect(() => {
         if (status === "authenticated") {
-            fetch(`/api/users/${params.id}`)
+            fetch(`/api/users/${id}`)
                 .then((res) => res.json())
                 .then((data) => {
                     setName(data.name);
@@ -38,7 +39,7 @@ export default function EditUserPage({ params }: { params: { id: string } }) {
         e.preventDefault();
         if (!session) return;
 
-        const res = await fetch(`/api/users/${params.id}`, {
+        const res = await fetch(`/api/users/${id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
