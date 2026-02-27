@@ -25,6 +25,9 @@ model User {
   tasksAssigned Task[]        @relation("AssignedTasks")
   reports       DailyReport[]
   subcontracts  Subcontract[]
+
+  transactionsCreated CashTransaction[] @relation("TransactionCreatedBy")
+  transactionsUpdated CashTransaction[] @relation("TransactionUpdatedBy")
 }
 
 model Project {
@@ -741,6 +744,7 @@ model CashRegister {
 
 model CashTransaction {
   id          String   @id @default(uuid())
+  number      String?  @unique // Numéro de transaction unique ex: TRX-0001
   type        String   // "IN", "OUT"
   amount      Float
   description String
@@ -751,6 +755,20 @@ model CashTransaction {
   registerId String
   register   CashRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
 
+  // Tracking
+  createdById String?
+  createdBy   User? @relation("TransactionCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User? @relation("TransactionUpdatedBy", fields: [updatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TransactionCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  color     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

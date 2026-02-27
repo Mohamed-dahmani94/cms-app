@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 
     const transactions = await prisma.cashTransaction.findMany({
       where,
-      include: { register: true },
+      include: { register: true, createdBy: true, updatedBy: true },
       orderBy: { date: "desc" },
       take: limit,
     })
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { type, amount, description, category, registerId, reference } = body
+    const { type, amount, description, category, registerId, reference, userId } = body
 
     if (!type || !amount || !description || !registerId) {
       return NextResponse.json({ error: "Type, amount, description, and register are required" }, { status: 400 })
@@ -39,18 +39,21 @@ export async function POST(req: Request) {
 
     // Create transaction and update register balance in transaction
     const balanceChange = type === "IN" ? amount : -amount
+    const txNumber = `TRX-${type}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
 
     const [transaction] = await prisma.$transaction([
       prisma.cashTransaction.create({
         data: {
+          number: txNumber,
           type,
           amount,
           description,
           category: category || null,
           reference: reference || null,
           registerId,
+          createdById: userId || null,
         },
-        include: { register: true },
+        include: { register: true, createdBy: true },
       }),
       prisma.cashRegister.update({
         where: { id: registerId },
