@@ -261,7 +261,7 @@ export default function FinancePage() {
               <tr><th>Description</th><td>${tx.description}</td></tr>
               <tr><th>Catégorie</th><td>${tx.category || '-'}</td></tr>
               <tr><th>Caisse</th><td>${showTx?.name}</td></tr>
-              ${tx.reference ? \`<tr><th>Document Référence</th><td>\${tx.reference}</td></tr>\` : ''}
+              ${tx.reference ? `<tr><th>Document Référence</th><td>${tx.reference}</td></tr>` : ''}
               <tr><th>Créé par</th><td>${tx.createdBy?.name || '-'}</td></tr>
             </table>
           </div>
@@ -275,30 +275,6 @@ export default function FinancePage() {
     `)
     w.document.close()
   }
-
-  function exportCSV() {
-    if (!showTx) return
-    const headers = ["ID", "Reference", "Date", "Type", "Montant", "Description", "Categorie", "CreePar"]
-    const rows = filteredTxs.map(t => [
-      t.number || t.id,
-      t.reference || "",
-      new Date(t.date).toISOString(),
-      t.type,
-      t.amount,
-      t.description,
-      t.category || "",
-      t.createdBy?.name || ""
-    ])
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\\n")
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement("a")
-    link.setAttribute("href", encodedUri)
-    link.setAttribute("download", \`transactions_caisse_\${showTx.id}.csv\`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
   // --- FILTERING & STATS ---
   const filteredTxs = useMemo(() => {
     return txList.filter(tx => {
@@ -310,12 +286,35 @@ export default function FinancePage() {
 
   const stats = useMemo(() => {
     let inputs = 0; let outputs = 0;
-    filteredTxs.forEach(t => {
+    filteredTxs.forEach((t: any) => {
       if (t.type === "IN") inputs += t.amount
       else outputs += t.amount
     })
     return { inputs, outputs }
   }, [filteredTxs])
+
+  function exportCSV() {
+    if (!showTx) return
+    const headers = ["ID", "Reference", "Date", "Type", "Montant", "Description", "Categorie", "CreePar"]
+    const rows = filteredTxs.map((t: any) => [
+      t.number || t.id,
+      t.reference || "",
+      new Date(t.date).toISOString(),
+      t.type,
+      t.amount,
+      t.description,
+      t.category || "",
+      t.createdBy?.name || ""
+    ])
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e: any) => e.join(","))].join("\\n")
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement("a")
+    link.setAttribute("href", encodedUri)
+    link.setAttribute("download", `transactions_caisse_${showTx.id}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   const totalBalance = registers.reduce((s, r) => s + r.balance, 0)
   const projectRegisters = registers.filter(r => r.type === "PROJECT")
@@ -361,7 +360,7 @@ export default function FinancePage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Solde Total — Toutes Caisses</p>
-                <p className={\`text-4xl font-bold \${totalBalance >= 0 ? "text-green-600" : "text-red-600"}\`}>
+                <p className={`text-4xl font-bold ${totalBalance >= 0 ? "text-green-600" : "text-red-600"}`}>
                   {totalBalance.toLocaleString("fr-DZ")} DA
                 </p>
               </div>
@@ -392,7 +391,7 @@ export default function FinancePage() {
                         </Button>
                       </div>
                     </div>
-                    <p className={\`text-2xl font-bold mt-3 \${r.balance >= 0 ? "text-green-600" : "text-red-600"}\`}>
+                    <p className={`text-2xl font-bold mt-3 ${r.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
                       {r.balance.toLocaleString("fr-DZ")} DA
                     </p>
                   </CardContent>
@@ -424,7 +423,7 @@ export default function FinancePage() {
                         </Button>
                       </div>
                     </div>
-                    <p className={\`text-2xl font-bold mt-3 \${r.balance >= 0 ? "text-green-600" : "text-red-600"}\`}>
+                    <p className={`text-2xl font-bold mt-3 ${r.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
                       {r.balance.toLocaleString("fr-DZ")} DA
                     </p>
                   </CardContent>
@@ -541,7 +540,7 @@ export default function FinancePage() {
           <DialogHeader>
             <DialogTitle className="flex justify-between items-center">
               <span>{showTx?.name}</span>
-              <span className={\`text-xl \${(showTx?.balance || 0) >= 0 ? "text-green-600" : "text-red-600"}\`}>
+              <span className={`text-xl ${(showTx?.balance || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {showTx?.balance.toLocaleString("fr-DZ")} DA
               </span>
             </DialogTitle>
@@ -571,7 +570,7 @@ export default function FinancePage() {
             
           <div className="space-y-2">
             {filteredTxs.map((tx: any) => (
-              <div key={tx.id} className={\`flex items-center justify-between p-3 rounded-lg border \${tx.type === "IN" ? "bg-green-50/50 dark:bg-green-900/10 border-green-100" : "bg-red-50/50 dark:bg-red-900/10 border-red-100"}\`}>
+              <div key={tx.id} className={`flex items-center justify-between p-3 rounded-lg border ${tx.type === "IN" ? "bg-green-50/50 dark:bg-green-900/10 border-green-100" : "bg-red-50/50 dark:bg-red-900/10 border-red-100"}`}>
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold">{tx.description}</p>
@@ -585,7 +584,7 @@ export default function FinancePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <p className={\`font-bold text-lg \${tx.type === "IN" ? "text-green-600" : "text-red-600"}\`}>
+                  <p className={`font-bold text-lg ${tx.type === "IN" ? "text-green-600" : "text-red-600"}`}>
                     {tx.type === "IN" ? "+" : "-"}{tx.amount.toLocaleString("fr-DZ")} DA
                   </p>
                   <div className="flex flex-col gap-1">

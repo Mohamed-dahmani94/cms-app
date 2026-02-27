@@ -33,7 +33,7 @@ export default function EditUserPage({ params }: { params: Promise<{ id: string 
                 })
                 .catch(console.error);
         }
-    }, [status, params.id]);
+    }, [status, id]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
